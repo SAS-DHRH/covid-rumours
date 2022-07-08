@@ -1,0 +1,13 @@
+md5: 4defa7d7f0e0abfde297d77dea9ef1a9
+frozen: true
+deps:
+- path: build
+  repo:
+    url: git@github.com:SAS-DHRH/covid-rumours-data.git
+    rev_lock: f23bd419f91337b9a53040a57c0576e91f842c84
+outs:
+- md5: 9df03147efa7b4dfb146a43b7c622620.dir
+  size: 22990396544
+  nfiles: 4049
+  path: covid-rumours-data
+  desc: covid-rumours-data/build directory

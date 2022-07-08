@@ -1,0 +1,31 @@
+authtoken: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+region: eu
+console_ui: false
+update: false
+inspect: false
+
+tunnels:
+  prodigy:
+    proto: http
+    hostname: pestilential-cowmania1853.eu.ngrok.io
+    addr: 8080
+    inspect: false
+    bind-tls: true
+    auth: "annotate:modernmiasmaticvapours"
+  metrics:
+    proto: http
+    hostname: quarantine-legislation1721.sas.eu.ngrok.io
+    addr: 8501
+    inspect: false
+    bind-tls: true
+    auth: "dashboard:modernmiasmaticvapours"
+  ngrams:
+    proto: http
+    hostname: portentous-heterodoxy2021.sas.eu.ngrok.io
+    addr: 8502
+    inspect: false
+    bind-tls: true
+    auth: "dashboard:modernmiasmaticvapours"
+
+
+    

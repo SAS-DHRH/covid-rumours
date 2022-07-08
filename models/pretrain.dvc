@@ -1,0 +1,5 @@
+outs:
+- md5: 49d89b93c0378f4a210d7ebe708d0d37.dir
+  size: 292769652
+  nfiles: 12
+  path: pretrain

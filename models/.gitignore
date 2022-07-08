@@ -1,0 +1,10 @@
+.DS_Store
+**/.DS_Store
+**/.ipynb_checkpoints
+/multi-classifier
+/tweetscruff-classifier
+/conspiracy-classifier
+/cures-classifier
+/origins-classifier
+/vaccines-classifier
+/pretrain

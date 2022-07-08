@@ -1,0 +1,134 @@
+Notes on hyper-parameter and latent STTM topic modelling tests
+DRAFT
+---
+MS, 2021-03-26
+
+Relevant literature: 
+- using Gibbs Sampling Dirichlet Multinomial Mixture (GSDMM)
+- https://arxiv.org/pdf/1904.07695.pdf
+- https://medium.com/analytics-vidhya/topic-modeling-using-lda-and-gibbs-sampling-explained-49d49b3d1045
+- https://towardsdatascience.com/short-text-topic-modeling-70e50a57c883
+- https://github.com/cpsievert/LDAvis
+- Journal article which describes parameter tuning: @see: https://arxiv.org/pdf/1904.07695v1.pdf
+
+
+Topic Coherence:
+LFDMM has the best topic coherence (figure 8), but has a significantly larger initiation and per iteration time (table 7).
+
+parameter settings:
+"LF-DMM: We set λ = 0.6, α = 0.1 and β = 0.01 shown in
+their paper. We set the iterations for baseline models as 1,500 and
+ran the further iterations 500 times."
+
+Topic number and words per topic:
+I think the default 20 word topics is too much, so we will use 10 word topics.
+The default of 20 topics is also perhaps too much, so we will use 10 topics per data chunk.
+
+Number of iterations:
+Figure 9: Models based global word cooccurrences get stable within 60 iterations. For LF-DMM it stabalises quickly so we will use 16 iterations to try to cost/benefit against the large iteration and initiation time of LF-DMM.
+
+Word vectors:
+We will use the smallest glove vector file, just for speed benefits. There are so many words which in social media which are unlikely to occur in Glove, so we just want to use word vectors to grab context for some: glove.twitter.27B.25d
+
+
+0th test:
+DMM algorithm without word vectors, and with default STMM.jar flags/params.
+This looks okay, but a but topic words are a bit scattered and random.
+
+1st test: don't use this
+LFDMM algorithm with small Glove twitter word vectors, and with default STMM.jar flags/params.
+This looks okay, but a but topic words are a bit scattered and random.
+Do not use.
+
+2nd test: do not use this.
+time java -jar ../../bin/STTM/jar/STTM.jar \
+	-model LFDMM \
+	-corpus rona-rumours-corpus-ᾱaa.txt \
+	-ntopics 10 \
+	-lambda 0.6 \
+	-niters 500 \
+	-twords 10 \
+	-vectors ../../bin/glove.twitter.27B/glove.twitter.27B.25d.txt \
+	-name rona-rumours-corpus-ᾱaa
+
+java -jar ../../bin/STTM/jar/STTM.jar -model LFDMM -corpus  -ntopics 10
+  0.6   3235.30s user 10.36s system 534% cpu 10:07.45 total
+
+10 minutes per file!
+The default iterations took 45minutes!
+10 minutes is plausible to use on my macbook air M1!
+BUT... the topics look much less cohesive from just trying to read them. hmm...
+
+
+3rd test: do not use this.
+using huge glove vectors
+
+time java -jar ../../bin/STTM/jar/STTM.jar \
+	-model LFDMM \
+	-corpus rona-rumours-corpus-ᾱaa.txt \
+	-ntopics 10 \
+	-lambda 0.6 \
+	-niters 500 \
+	-twords 10 \
+	-vectors ../../bin/glove.twitter.27B/glove.twitter.27B.200d.txt \
+	-name rona-rumours-corpus-ᾱaa
+
+took 1.5 hours and only got through 150 iterations. Takes way too long.
+stopped this after about an hour as it was going too slow.
+
+4th test: use this.
+use small vectors with 10 topics of 20 words each
+
+time java -jar ../../bin/STTM/jar/STTM.jar \
+	-model LFDMM \
+	-corpus rona-rumours-corpus-ᾱaa.txt \
+	-ntopics 10 \
+	-niters 500 \
+	-vectors ../../bin/glove.twitter.27B/glove.twitter.27B.25d.txt \
+	-name rona-rumours-corpus-ᾱaa
+
+this worked really well. About 20minutes per file, which is reasonable.
+topics look pretty decent.
+Going to run this as well.
+
+
+
+Conclusion:
+
+use DMM bare (0th test)
+and 4th test, which is 10 topics, 20 words each, using small glove vectors.
+
+Update: we didn't use the topic models in the research. Instead opting for measuring the n-gram concurrences and visualising these for their related information content (point wise mutual information). See the main readme.md for references to the topic modelling papers we got some ideas from.
+<br />
+
+## Citation
+
+Please cite this project as follows:
+
+```
+Covid Rumours in Historical Context, Data analysis of COVID-19 tweets, Digital Humanities Research Hub, School of Advanced Study, University of London. url: https://github.com/SAS-DHRH/covid-rumours [accessed: YYYY-MM-DD]
+```
+
+<br />
+
+## License
+
+Unless otherwise stated, the data and code produced by the project are released under [Creative Commons CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) license and in accordance with the [University of London’s research policies](https://www.sas.ac.uk/discover-our-research/research-governance-policies).
+
+All Twitter data provided in the project's repositories is subject to Twitter's [Terms of Service](https://twitter.com/en/tos), [Privacy Policy](https://twitter.com/en/privacy), [Developer Agreement](https://developer.twitter.com/en/developer-terms/agreement), and [Developer Policy](https://developer.twitter.com/en/developer-terms/policy). Tweet IDs, where included, are shared for the sole purpose of non-commercial research, as stipulated by Twitter's [terms of content redistribution](https://developer.twitter.com/en/developer-terms/policy).
+
+<br />
+
+## Disclaimer
+
+All the data and code in this project's repositories are provided as-is.
+
+<br />
+
+\---
+
+Martin Steer and Kunika Kono, [Digital Humanities Research Hub (DHRH)](https://www.sas.ac.uk/digital-humanities), School of Advanced Study (SAS), University of London.  
+
+:octocat: Find us on GitHub at https://github.com/SAS-DHRH
+
+

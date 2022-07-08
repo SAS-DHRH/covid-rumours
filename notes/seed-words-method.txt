@@ -1,0 +1,480 @@
+Seed words and classifier notes
+DRAFT
+---
+*MS, 2021-08*
+
+I extracted initial keywords from the taxonomies Word documents which David and Jo wrote, as well as from David's notes ideas and theories document from his distant reading of the corpus alpha topics and word frequency data.
+
+These initial keywords where then searched for in all the corpus alpha Short Text Topic Models (STTM), and all words from each matching topic were collected. This is so we take the qualitative descriptions, use them to search through the topic models to produce a much larger list of corpus specific other words, which were determined as statistically/conceptually related to the initial keywords.
+
+All matched topic words were then sorted and deduplicated, and we manually scanned down the text file, deleting words which did not seem "suitable" for the category for which we were building the seed list.
+
+e.g. For the Conspiracy theories category, keywords extracted from qualitative descriptions about 'conspiracies' were like the following:
+
+```
+Plots
+conspiracies
+deliberately spread
+foreigners
+poison
+tyrannical plot
+cabal
+deliberately distracted
+foreign and domestic threat
+coup
+rebellion
+conspirators
+secret
+poachers
+gamekeepers
+diabolical
+enslave people
+elites
+Israeli
+zionist
+new world order 
+plandemic 
+event 201 
+Bill Gates 
+Agenda 
+State 
+fauci 
+global conspiracy 
+Judy Mikovits 
+freedom
+hoax
+bullshit
+fake
+Filmyourhospital
+new world order
+anti-vaxers
+conspiracy
+conspiracy theories
+Bill Gates
+tracking chip
+global surveillance state
+```
+
+Then searching through the topic models to extract relevant corpus specific seed terms:
+
+```
+billionaire
+bioweapon
+bolsonaro
+censor
+conspiracy
+coronahoax
+covidiot
+covidiots
+debunked
+debunking
+debunks
+depopulate
+depopulation
+endlockdown
+faux
+kremlin
+leftist
+liberties
+liberty
+lockdown
+lockdowns
+mafia
+mandates
+mandatory
+maskers
+maskhole
+military
+misinformation
+monitoring
+myth
+narrative
+obamagate
+plandemic
+plannedemic
+profit
+propaganda
+pseudoscience
+psychological
+qanon
+radiation
+reason
+robots
+russiagate
+scamdemic
+sherlock
+simulation
+soros
+sterilization
+surveillance
+terrorism
+theories
+theorist
+theorists
+theory
+truth
+truthoverfacts
+whistleblower
+worldwide
+wuhan
+```
+
+These seed terms will then be used downstream for:
+
+- Obtaining further related keywords using word vectors and cosine distance: https://prodi.gy/docs/recipes#terms-teach
+- Searching the corpus for relevant tweets containing the words: https://prodi.gy/docs/recipes#match
+- Training a machine learning classifier upon the extracted/annotated tweets: https://prodi.gy/docs/text-classification
+
+### Extracting terms from prodigy
+
+Prodigy stores the terms in it's own local database. Extract the database entirely (which includes ACCEPT, REJECT and IGNORE terms) and remove duplicates:
+
+```bash
+prodigy db-out seed_cures | sort | uniq > models/cures-classifier/cures-prodigy.jsonl
+```
+
+And extract the database as a Spacy patterns file (which only includes ACCEPT terms):
+
+```bash
+prodigy terms.to-patterns seed_cures --label CURES | sort | uniq > ./models/cures-classifier/cures-patterns.jsonl
+```
+
+The patterns file can then be used to search through the tweet corpus to produce JSONL (and HTML for easy viewing) sample files:
+
+```bash
+mkdir models/cures-classifier/walls
+
+gzcat data/alpha/build/noretweets/rona-rumours-corpus-ᾱ-2020-04-1*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/cures-classifier/cures-patterns.jsonl > ./models/cures-classifier/walls/2020-04-1x.jsonl
+```
+
+or you can run the tweets through a classifier/filters as well as the pattern matcher, to build up a pipeline:
+
+```bash
+gzcat ../../data/alpha/build/noretweets/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ../../scripts/spacy-match.py --patterns ../cures-classifier/cures-patterns.jsonl --excludes ../exclude-patterns.jsonl | ../../scripts/spacy-textcat.py --textcat ./m1-5g --label TWEETSCRUFF > 2020-04-cures-noscruff.jsonl
+```
+
+This example uses `spacy-match.py` to pattern match (with exclusion patterns) and then filter out the 'scruff' tweets (undesirable spammy types we aren't interested in).
+
+If the files are too large, you can reduce them further with randomly sampling a percentage of the lines:
+
+```bash
+awk 'BEGIN {srand()} !/^$/ { if (rand() <= .17) print $0}' vaccines-2020-04.jsonl > vaccines-2020-04-sample.jsonl 
+```
+
+Then the JSON files can be used to generate a HTML wall for easy viewing:
+
+```bash
+./scripts/twarc-wall.py --title "Cures sample 2020-04-1*" models/cures-classifier/walls/2020-04-1x.jsonl > models/cures-classifier/walls/2020-04-1x.html 
+```
+
+Note: this is a modified version of Twarc's `utils/wall.py` script which does not download user account images (so it's heaps faster!) and allows a customisable page title.
+
+### Feeding tweets to prodigy
+
+This cats the files and runs them through the `jq` command, which spits out just id and text for prodigy recipes.
+
+```bash
+gzcat ../../data/alpha/build/noretweets/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | jq -c '{id: .id_str, text: (if .extended_tweet.full_text then .extended_tweet.full_text else (if .full_text then .full_text else .text end) end)}' | prodigy textcat.teach tweetscruff_training2 ./m1-5g - --label TWEETSCRUFF
+```
+
+<br />
+
+#### Commands history for wall building
+
+Conspiracy classifier:
+
+```bash
+source ~/.env/bin/activate
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/conspiracy-classifier/conspiracy-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/conspiracy-classifier/walls/conspiracy-2020-04.jsonl 
+
+./scripts/twarc-wall.py --title "conspiracy-classifier sample 2020-04" models/conspiracy-classifier/walls/conspiracy-2020-04.jsonl > models/conspiracy-classifier/walls/conspiracy-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/conspiracy-classifier/conspiracy-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/conspiracy-classifier/walls/conspiracy-2020-05.jsonl 
+
+./scripts/twarc-wall.py --title "conspiracy-classifier sample 2020-05" models/conspiracy-classifier/walls/conspiracy-2020-05.jsonl > models/conspiracy-classifier/walls/conspiracy-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/conspiracy-classifier/conspiracy-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/conspiracy-classifier/walls/conspiracy-2020-08.jsonl 
+
+./scripts/twarc-wall.py --title "conspiracy-classifier sample 2020-08" models/conspiracy-classifier/walls/conspiracy-2020-08.jsonl > models/conspiracy-classifier/walls/conspiracy-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/conspiracy-classifier/conspiracy-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/conspiracy-classifier/walls/conspiracy-2020-11.jsonl 
+
+./scripts/twarc-wall.py --title "conspiracy-classifier sample 2020-11" models/conspiracy-classifier/walls/conspiracy-2020-11.jsonl > models/conspiracy-classifier/walls/conspiracy-2020-11.html
+```
+
+Cures classifier:
+
+```bash
+source ~/.env/bin/activate
+
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/cures-classifier/cures-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/cures-classifier/walls/cures-2020-04.jsonl 
+
+./scripts/twarc-wall.py --title "cures-classifier sample 2020-04" models/cures-classifier/walls/cures-2020-04.jsonl > models/cures-classifier/walls/cures-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/cures-classifier/cures-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/cures-classifier/walls/cures-2020-05.jsonl 
+
+./scripts/twarc-wall.py --title "cures-classifier sample 2020-05" models/cures-classifier/walls/cures-2020-05.jsonl > models/cures-classifier/walls/cures-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/cures-classifier/cures-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/cures-classifier/walls/cures-2020-08.jsonl 
+
+./scripts/twarc-wall.py --title "cures-classifier sample 2020-08" models/cures-classifier/walls/cures-2020-08.jsonl > models/cures-classifier/walls/cures-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/cures-classifier/cures-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/cures-classifier/walls/cures-2020-11.jsonl 
+
+./scripts/twarc-wall.py --title "cures-classifier sample 2020-11" models/cures-classifier/walls/cures-2020-11.jsonl > models/cures-classifier/walls/cures-2020-11.html
+```
+
+Origins classifier:
+
+```bash
+prodigy dataset seed_origins
+prodigy terms.teach seed_origins en_core_web_lg --seeds models/origins-classifier/origins-seed-words.txt
+prodigy db-out seed_origins | sort | uniq > models/origins-classifier/origins-prodigy.jsonl
+prodigy terms.to-patterns seed_origins --label ORIGINS | sort | uniq > ./models/origins-classifier/origins-patterns.jsonl
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/origins-classifier/origins-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/origins-classifier/walls/origins-2020-04.jsonl 
+
+./scripts/twarc-wall.py --title "origins-classifier sample 2020-04" models/origins-classifier/walls/origins-2020-04.jsonl > models/origins-classifier/walls/origins-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/origins-classifier/origins-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/origins-classifier/walls/origins-2020-05.jsonl 
+
+./scripts/twarc-wall.py --title "origins-classifier sample 2020-05" models/origins-classifier/walls/origins-2020-05.jsonl > models/origins-classifier/walls/origins-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/origins-classifier/origins-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/origins-classifier/walls/origins-2020-08.jsonl 
+
+./scripts/twarc-wall.py --title "origins-classifier sample 2020-08" models/origins-classifier/walls/origins-2020-08.jsonl > models/origins-classifier/walls/origins-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/origins-classifier/origins-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/origins-classifier/walls/origins-2020-11.jsonl 
+
+./scripts/twarc-wall.py --title "origins-classifier sample 2020-11" models/origins-classifier/walls/origins-2020-11.jsonl > models/origins-classifier/walls/origins-2020-11.html
+```
+
+Vaccines classifier:
+
+```bash
+prodigy dataset seed_vaccines
+prodigy terms.teach seed_vaccines en_core_web_lg --seeds models/vaccines-classifier/vaccines-seed-words.txt
+prodigy db-out seed_vaccines | sort | uniq > models/vaccines-classifier/vaccines-prodigy.jsonl
+prodigy terms.to-patterns seed_vaccines --label VACCINES | sort | uniq > ./models/vaccines-classifier/vaccines-patterns.jsonl
+
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/vaccines-classifier/vaccines-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/vaccines-classifier/walls/vaccines-2020-04.jsonl 
+
+./scripts/twarc-wall.py --title "vaccines-classifier sample 2020-04" models/vaccines-classifier/walls/vaccines-2020-04.jsonl > models/vaccines-classifier/walls/vaccines-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/vaccines-classifier/vaccines-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/vaccines-classifier/walls/vaccines-2020-05.jsonl 
+
+./scripts/twarc-wall.py --title "vaccines-classifier sample 2020-05" models/vaccines-classifier/walls/vaccines-2020-05.jsonl > models/vaccines-classifier/walls/vaccines-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/vaccines-classifier/vaccines-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/vaccines-classifier/walls/vaccines-2020-08.jsonl 
+
+./scripts/twarc-wall.py --title "vaccines-classifier sample 2020-08" models/vaccines-classifier/walls/vaccines-2020-08.jsonl > models/vaccines-classifier/walls/vaccines-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/vaccines-classifier/vaccines-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/vaccines-classifier/walls/vaccines-2020-11.jsonl 
+
+./scripts/twarc-wall.py --title "vaccines-classifier sample 2020-11" models/vaccines-classifier/walls/vaccines-2020-11.jsonl > models/vaccines-classifier/walls/vaccines-2020-11.html
+```
+
+### Searches
+
+Just some basic keyword searches... (with potential to become classifiers)
+
+Grabbag search:
+
+```bash
+prodigy dataset grabbag_search
+prodigy terms.teach grabbag_search en_core_web_lg --seeds models/grabbag/grabbag-search-words.txt
+prodigy db-out grabbag_search | sort | uniq > models/grabbag/grabbag-prodigy.jsonl
+prodigy terms.to-patterns grabbag_search --label GRABBAG | sort | uniq > ./models/grabbag/grabbag-patterns.jsonl
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/grabbag-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/grabbag-2020-04.jsonl 
+./scripts/twarc-wall.py --title "Grabbag sample 2020-04" models/grabbag/walls/grabbag-2020-04.jsonl > models/grabbag/walls/grabbag-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/grabbag-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/grabbag-2020-05.jsonl 
+./scripts/twarc-wall.py --title "Grabbag sample 2020-05" models/grabbag/walls/grabbag-2020-05.jsonl > models/grabbag/walls/grabbag-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/grabbag-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/grabbag-2020-08.jsonl 
+./scripts/twarc-wall.py --title "Grabbag sample 2020-08" models/grabbag/walls/grabbag-2020-08.jsonl > models/grabbag/walls/grabbag-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/grabbag-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/grabbag-2020-11.jsonl 
+./scripts/twarc-wall.py --title "Grabbag sample 2020-11" models/grabbag/walls/grabbag-2020-011.jsonl > models/grabbag/walls/grabbag-2020-11.html
+```
+
+Zombies search:
+
+```bash
+prodigy dataset zombies_search
+prodigy terms.teach zombies_search en_core_web_lg --seeds models/grabbag/zombies-search-words.txt
+prodigy db-out zombies_search | sort | uniq > models/grabbag/zombies-prodigy.jsonl
+prodigy terms.to-patterns zombies_search --label ZOMBIES | sort | uniq > ./models/grabbag/zombies-patterns.jsonl
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/zombies-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/zombies-2020-04.jsonl 
+./scripts/twarc-wall.py --title "Zombies sample 2020-04" models/grabbag/walls/zombies-2020-04.jsonl > models/grabbag/walls/zombies-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/zombies-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/zombies-2020-05.jsonl 
+./scripts/twarc-wall.py --title "Zombies sample 2020-05" models/grabbag/walls/zombies-2020-05.jsonl > models/grabbag/walls/zombies-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/zombies-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/zombies-2020-08.jsonl 
+./scripts/twarc-wall.py --title "Zombies sample 2020-08" models/grabbag/walls/zombies-2020-08.jsonl > models/grabbag/walls/zombies-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/zombies-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/zombies-2020-11.jsonl 
+./scripts/twarc-wall.py --title "Zombies sample 2020-11" models/grabbag/walls/zombies-2020-011.jsonl > models/grabbag/walls/zombies-2020-11.html
+```
+
+Satan search:
+
+```bash
+prodigy dataset satan_search
+prodigy terms.teach satan_search en_core_web_lg --seeds models/grabbag/satan-search-words.txt
+prodigy db-out satan_search | sort | uniq > models/grabbag/satan-prodigy.jsonl
+prodigy terms.to-patterns satan_search --label SATAN | sort | uniq > ./models/grabbag/satan-patterns.jsonl
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/satan-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/satan-2020-04.jsonl 
+./scripts/twarc-wall.py --title "Satan sample 2020-04" models/grabbag/walls/satan-2020-04.jsonl > models/grabbag/walls/satan-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/satan-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/satan-2020-05.jsonl 
+./scripts/twarc-wall.py --title "Satan sample 2020-05" models/grabbag/walls/satan-2020-05.jsonl > models/grabbag/walls/satan-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/satan-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/satan-2020-08.jsonl 
+./scripts/twarc-wall.py --title "Satan sample 2020-08" models/grabbag/walls/satan-2020-08.jsonl > models/grabbag/walls/satan-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/satan-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/satan-2020-11.jsonl 
+./scripts/twarc-wall.py --title "Satan sample 2020-11" models/grabbag/walls/satan-2020-011.jsonl > models/grabbag/walls/satan-2020-11.html
+```
+
+Robots search:
+
+```bash
+prodigy dataset robots_search
+prodigy terms.teach robots_search en_core_web_lg --seeds models/grabbag/robots-search-words.txt
+prodigy db-out robots_search | sort | uniq > models/grabbag/robots-prodigy.jsonl
+prodigy terms.to-patterns robots_search --label ROBOTS | sort | uniq > ./models/grabbag/robots-patterns.jsonl
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/robots-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/robots-2020-04.jsonl 
+./scripts/twarc-wall.py --title "Robots sample 2020-04" models/grabbag/walls/robots-2020-04.jsonl > models/grabbag/walls/robots-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/robots-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/robots-2020-05.jsonl 
+./scripts/twarc-wall.py --title "Robots sample 2020-05" models/grabbag/walls/robots-2020-05.jsonl > models/grabbag/walls/robots-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/robots-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/robots-2020-08.jsonl 
+./scripts/twarc-wall.py --title "Robots sample 2020-08" models/grabbag/walls/robots-2020-08.jsonl > models/grabbag/walls/robots-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/robots-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/robots-2020-11.jsonl 
+./scripts/twarc-wall.py --title "Robots sample 2020-11" models/grabbag/walls/robots-2020-011.jsonl > models/grabbag/walls/robots-2020-11.html
+```
+
+Exaggerated rumours search:
+
+```bash
+prodigy dataset exaggerated-rumours_search
+prodigy terms.teach exaggerated-rumours_search en_core_web_lg --seeds models/grabbag/exaggerated-rumours-search-words.txt
+prodigy db-out exaggerated-rumours_search | sort | uniq > models/grabbag/exaggerated-rumours-prodigy.jsonl
+prodigy terms.to-patterns exaggerated-rumours_search --label EXAGGERATED-RUMOURS | sort | uniq > ./models/grabbag/exaggerated-rumours-patterns.jsonl
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/exaggerated-rumours-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/exaggerated-rumours-2020-04.jsonl 
+./scripts/twarc-wall.py --title "Exaggerated rumours sample 2020-04" models/grabbag/walls/exaggerated-rumours-2020-04.jsonl > models/grabbag/walls/exaggerated-rumours-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/exaggerated-rumours-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/exaggerated-rumours-2020-05.jsonl 
+./scripts/twarc-wall.py --title "Exaggerated rumours sample 2020-05" models/grabbag/walls/exaggerated-rumours-2020-05.jsonl > models/grabbag/walls/exaggerated-rumours-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/exaggerated-rumours-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/exaggerated-rumours-2020-08.jsonl 
+./scripts/twarc-wall.py --title "Exaggerated rumours sample 2020-08" models/grabbag/walls/exaggerated-rumours-2020-08.jsonl > models/grabbag/walls/exaggerated-rumours-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/exaggerated-rumours-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/exaggerated-rumours-2020-11.jsonl 
+./scripts/twarc-wall.py --title "Exaggerated rumours sample 2020-11" models/grabbag/walls/exaggerated-rumours-2020-011.jsonl > models/grabbag/walls/exaggerated-rumours-2020-11.html
+```
+
+BLM search:
+
+```bash
+prodigy dataset blm_search
+prodigy terms.teach blm_search en_core_web_lg --seeds models/grabbag/blm-search-words.txt
+prodigy db-out blm_search | sort | uniq > models/grabbag/blm-prodigy.jsonl
+prodigy terms.to-patterns blm_search --label BLM | sort | uniq > ./models/grabbag/blm-patterns.jsonl
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-04-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/blm-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/blm-2020-04.jsonl 
+./scripts/twarc-wall.py --title "BLM sample 2020-04" models/grabbag/walls/blm-2020-04.jsonl > models/grabbag/walls/blm-2020-04.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-05-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/blm-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/blm-2020-05.jsonl 
+./scripts/twarc-wall.py --title "BLM sample 2020-05" models/grabbag/walls/blm-2020-05.jsonl > models/grabbag/walls/blm-2020-05.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-08-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/blm-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/blm-2020-08.jsonl 
+./scripts/twarc-wall.py --title "BLM sample 2020-08" models/grabbag/walls/blm-2020-08.jsonl > models/grabbag/walls/blm-2020-08.html
+
+gzcat ./build/noscruff/rona-rumours-corpus-ᾱ-2020-11-*.jsonl.gz | ./scripts/spacy-match.py --patterns ./models/grabbag/blm-patterns.jsonl --excludes ./models/exclude-patterns.jsonl > ./models/grabbag/walls/blm-2020-11.jsonl 
+./scripts/twarc-wall.py --title "BLM sample 2020-11" models/grabbag/walls/blm-2020-011.jsonl > models/grabbag/walls/blm-2020-11.html
+```
+
+
+
+### Produce training data
+
+Some months produce a LOT of matches, and really, we only need about 500 tweets per month. So we need to calculate the percentage needed from the length of each matched month, then randomly subsample that again. Here's a bash command which did this nicely:
+
+```bash
+awk 'BEGIN {srand()} !/^$/ { if (rand() <= .03) print $0}' cures-2020-04.jsonl| wc -l
+```
+
+### Refining a formal dictionary
+
+After the process of generating and using the seed lists for searching through and sampling tweets in the corpus, we began to notice overlapping and subcategories of interest, and have excluded some words and included others into a series of subcategories.
+
+The use of the subcategories will be downstream of the broad category classifiers, allowing us to form a pipeline roughly as follows:
+
+- Exclude scruff tweets
+- Refine data for top level classifier
+- Filter and split further according to subcategory vocabularies
+- Perform diachronic, statistical and network analyses on the subcategories' data (as well as close reading them!).
+
+**Categories are currently:**
+
+1. CONSPIRACY:
+   1. COVID IS EXAGGERATED/DOES NOT EXIST:
+      1. DEATH OR CASE MISCOUNTING:
+   2. GLOBAL CONSPIRACY:
+      1. TYRANNY:
+      2. VACCINES:
+         1. DEPOPULATION:
+         2. MICROCHIPS AND TRACKING:
+   3. BIG PHARMA:
+   4. PLOT BY DEMOCRATIC PARTY:
+   5. SATAN:
+   6. ZOMBIES:
+   7. ROBOTS:
+   8. BLACK LIVES MATTER (BLM):
+   9. ANTI_CONSPIRACY:
+
+<br />
+
+## Citation
+
+Please cite this project as follows:
+
+```
+Covid Rumours in Historical Context, Data analysis of COVID-19 tweets, Digital Humanities Research Hub, School of Advanced Study, University of London. url: https://github.com/SAS-DHRH/covid-rumours [accessed: YYYY-MM-DD]
+```
+
+<br />
+
+## License
+
+Unless otherwise stated, the data and code produced by the project are released under [Creative Commons CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) license and in accordance with the [University of London’s research policies](https://www.sas.ac.uk/discover-our-research/research-governance-policies).
+
+All Twitter data provided in the project's repositories is subject to Twitter's [Terms of Service](https://twitter.com/en/tos), [Privacy Policy](https://twitter.com/en/privacy), [Developer Agreement](https://developer.twitter.com/en/developer-terms/agreement), and [Developer Policy](https://developer.twitter.com/en/developer-terms/policy). Tweet IDs, where included, are shared for the sole purpose of non-commercial research, as stipulated by Twitter's [terms of content redistribution](https://developer.twitter.com/en/developer-terms/policy).
+
+<br />
+
+## Disclaimer
+
+All the data and code in this project's repositories are provided as-is.
+
+<br />
+
+\---
+
+Martin Steer and Kunika Kono, [Digital Humanities Research Hub (DHRH)](https://www.sas.ac.uk/digital-humanities), School of Advanced Study (SAS), University of London.  
+
+:octocat: Find us on GitHub at https://github.com/SAS-DHRH
+

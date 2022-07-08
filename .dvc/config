@@ -1,0 +1,8 @@
+[core]
+    remote = azureprod
+    analytics = false
+['remote "marjory"']
+    url = ssh://marjory/home/dvcremotes
+['remote "azureprod"']
+    url = azure://twml/covid-rumours
+    account_name = sasprodtwittermlsa1

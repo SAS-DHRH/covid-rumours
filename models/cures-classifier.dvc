@@ -1,0 +1,5 @@
+outs:
+- md5: cf5d8e1b3858cddb364638a84119ba29.dir
+  size: 3747951261
+  nfiles: 73
+  path: cures-classifier

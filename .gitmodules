@@ -1,0 +1,6 @@
+[submodule "data/ambiguity-data"]
+	path = data/ambiguity-data
+	url = git@github.com:SAS-DHRH/ambiguity-data.git
+[submodule "dashboard"]
+	path = dashboard
+	url = git@github.com:SAS-DHRH/covid-rumours-dashboard.git

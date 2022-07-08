@@ -1,0 +1,302 @@
+gzcat data/tweets/rona-rumours-bn.jsonl.gz | jq -r '[.id_str, .created_at, .user.name, .user.id, .user.created_at] | @csv' > build/tweets/rona-rumours-bn.csv
+jq: error (at <stdin>:13444): Cannot index string with string "id_str"
+parse error: Invalid numeric literal at line 13444, column 12
+make: *** [build/tweets/rona-rumours-bh.csv] Error 4
+make: *** Waiting for unfinished jobs....
+
+
+Removed multithreading in the makefile and the error still happened but on a different file. The strange thing is the line and column numbers are identical! This suggests this error is not related to the bitstream:
+
+pigz -dc data/tweets/rona-rumours-bh.jsonl.gz | jq -r '[.id_str, .created_at, .user.name, .user.id, .user.created_at] | @csv' > build/tweets/rona-rumours-bh.csv
+jq: error (at <stdin>:13444): Cannot index string with string "id_str"
+parse error: Invalid numeric literal at line 13444, column 12
+make: *** [build/tweets/rona-rumours-bh.csv] Error 4
+
+
+I'm going to try to remove some of the jq selectors and see if this changes anything:
+
+pigz -dc data/tweets/rona-rumours-bn.jsonl.gz | jq -r '[.id_str, .created_at] | @csv' > build/tweets/rona-rumours-bn.csv
+jq: error (at <stdin>:13444): Cannot index string with string "id_str"
+parse error: Invalid numeric literal at line 13444, column 12
+make: *** [build/tweets/rona-rumours-bh.csv] Error 4
+make: *** Waiting for unfinished jobs....
+
+Nope. Didn't change anything.
+
+I think this is some sort of page fault. If I simply remove the last file and rerun the make command the build completes.
+
+I'm using jq v1.5, so I'm updating that to 1.6 and trying again to see if there is some better memory management or something:
+
+$ brew upgrade jq
+
+Nope! Argh!
+
+pigz -dc data/tweets/rona-rumours-bn.jsonl.gz | jq -r '[.id_str, .created_at] | @csv' > build/tweets/rona-rumours-bn.csv
+jq: error (at <stdin>:13444): Cannot index string with string "id_str"
+parse error: Invalid numeric literal at line 13444, column 12
+make: *** [build/tweets/rona-rumours-bh.csv] Error 4
+make: *** Waiting for unfinished jobs....
+
+
+pigz -dc data/tweets/rona-rumours-bp.jsonl.gz | jq -r '[.id, .created_at] | @csv' > build/tweets/rona-rumours-bp.csv
+jq: error (at <stdin>:13444): Cannot index string with string "id"
+parse error: Invalid numeric literal at line 13444, column 12
+pigz: abort: write error on <stdout> (Broken pipe)make: *** [build/tweets/rona-rumours-bh.csv] Error 4
+make: *** Waiting for unfinished jobs....
+
+
+Actually, I've just realised these are all failing on the BH chunk!
+
+So, I started to remove previous bg and bi chunk files and the error kept happening, then I noticed the broken pipe error started to appear, and then I noticed all the error 4's were coming from 'rona-rumours-bh' chunk file! So, now I've narrowed it down to the file. Hooray!!!! Found the intermediate source of the error!!! Here is line 13444 of rona-rumours-bh.jsonl. There is a huge
+MAC OS byte encoding line or something at the start of the tweet jsonl. How did this get here? I need to trace this line from the twarc harvested source data files... and check if it is in the tawrc harvest, or if it is introduced by the 'make source_data_chunks' command...
+
+
+{"created_at": "Sat Aug 22 16:43:28 +0000 2020", "id": 1297212805570072577, "id_str": "1297212805570072577", "full_text": "RT @trippin_free: I posted about NOT letting ur kids go back to school. Depopulation agenda 2020..\nThey will crank up #5G\nUr kids will show\u2026", "truncated": false, "display_text_range": [0, 140], "entities": {"hashtags": [{"text": "5G", "indices": [118, 121]}], "symbols": [], "user_mentions": [{"screen_name": "trippin_free", "name": "\u274cLocked In Tight, I'm Out Of Range \u274c", "id": 1152669866001874944, "id_str": "1152669866001874944", "indices": [3, 16]}], "urls": []}, "metadata": {"iso_language_code": "en", "result_type": "recent"}, "source": "<a href=\"https://mobile.twitter.com\" rel=\"nofollow\">Twitter Web App</a>", "in_reply_to_status_id": null, "in_reply_to_status_id_str": null, "in_reply_to_user_id": null, "in_reply_to_user_id_str": null, "in_reply_to_screen_name": null, "user": {"id": 1398602172, "id_str": "1398602172", "name": "Don'tPassMeBy", "screen_name": "jamesbo26445798", "location": "", "description": "Direct decedent of revolutionary war hero Sgt Adam Dietrich. #MAGA  #USAF Security Police.  Lutheran Father. Viet Nam Vet", "url": null, "entities": {"description": {"urls": []}}, "protected": false, "followers_count": 8015, "friends_count": 7904, "listed_count": 2, "created_at": "Fri May 03 02:01:35 +0000 2013", "favourites_count": 9809, "utc_offset": null, "time_zone": null, "geo_enabled": false, "verified": false, "statuses_count": 10633, "lang": null, "contributors_enabled": false, "is_translator": false, "is_translation_enabled": false, "profile_background_color": "000000", "profile_background_image_url": "http://abs.twimg.com/images/themes/theme1/bg.png", "profile_background_image_url_https": "https://abs.twimg.com/images/themes/theme1/bg.png", "profile_background_tile": false, "profile_image_url": "http://pbs.twimg.com/profile_images/518474594768801792/rsWdsPw6_normal.jpeg", "profile_image_url_https": "https://pbs.twimg.com/profile_images/518474594768801792/rsWdsPw6_normal.jpeg", "profile_banner_url": "https://pbs.twimg.com/profile_banners/1398602172/1489720194", "profile_link_color": "1B95E0", "profile_sidebar_border_color": "000000", "profile_sidebar_fill_color": "000000", "profile_text_color": "000000", "profile_use_background_image": true, "has_extended_profile": false, "default_profile": false, "default_profile_image": false, "following": false, "follow_request_sent": false, "notifications": false, "translator_type": "none"}, "geo": null, "coordinates": null, "place": null, "contributors": null, "retweeted_status": {"created_at": "Sat Aug 22 12:08:13 +0000 2020", "id": 1297143537008607233, "id_str": "1297143537008607233", "full_text": "I posted about NOT letting ur kids go back to school. Depopulation agenda 2020..\nThey will crank up #5G\nUr kids will show symptoms of a \"VIRUS \"  They can then take Ur children, you will have ZERO rights \u274c Please pay attention! \u274c\n#SaveOurChildren\n\nhttps://t.co/flFpRTzDAS https://t.co/V8d4qXK3xA", "truncated": false, "display_text_range": [0, 271], "entities": {"hashtags": [{"text": "5G", "indices": [100, 103]}, {"text": "SaveOurChildren", "indices": [230, 246]}], "symbols": [], "user_mentions": [], "urls": [{"url": "https://t.co/flFpRTzDAS", "expanded_url": "https://twitter.com/trippin_free/status/1296135004054065156?s=19", "display_url": "twitter.com/trippin_free/s\u2026", "indices": [248, 271]}], "media": [{"id": 1297143456368865281, "id_str": "1297143456368865281", "indices": [272, 295], "media_url": "http://pbs.twimg.com/ext_tw_video_thumb/1297143456368865281/pu/img/8frKNfWn2itVV3_r.jpg", "media_url_https": "https://pbs.twimg.com/ext_tw_video_thumb/1297143456368865281/pu/img/8frKNfWn2itVV3_r.jpg", "url": "https://t.co/V8d4qXK3xA", "display_url": "pic.twitter.com/V8d4qXK3xA", "expanded_url": "https://twitter.com/trippin_free/status/1297143537008607233/video/1", "type": "photo", "sizes": {"medium": {"w": 576, "h": 576, "resize": "fit"}, "thumb": {"w": 150, "h": 150, "resize": "crop"}, "small": {"w": 576, "h": 576, "resize": "fit"}, "large": {"w": 576, "h": 576, "resize": "fit"}}}]}, "extended_entities": {"media": [{"id": 1297143456368865281, "id_str": "1297143456368865281", "indices": [272, 295], "media_url": "http://pbs.twimg.com/ext_tw_video_thumb/1297143456368865281/pu/img/8frKNfWn2itVV3_r.jpg", "media_url_https": "https://pbs.twimg.com/ext_tw_video_thumb/1297143456368865281/pu/img/8frKNfWn2itVV3_r.jpg", "url": "https://t.co/V8d4qXK3xA", "display_url": "pic.twitter.com/V8d4qXK3xA", "expanded_url": "https://twitter.com/trippin_free/status/1297143537008607233/video/1", "type": "video", "sizes": {"medium": {"w": 576, "h": 576, "resize": "fit"}, "thumb": {"w": 150, "h": 150, "resize": "crop"}, "small": {"w": 576, "h": 576, "resize": "fit"}, "large": {"w": 576, "h": 576, "resize": "fit"}}, "video_info": {"aspect_ratio": [1, 1], "duration_millis": 60800, "variants": [{"bitrate": 1280000, "content_type": "video/mp4", "url": "https://video.twimg.com/ext_tw_video/1297143456368865281/pu/vid/576x576/1fU7fLZlWBYkuMlG.mp4?tag=10"}, {"bitrate": 832000, "content_type": "video/mp4", "url": "https://video.twimg.com/ext_tw_video/1297143456368865281/pu/vid/480x480/bVXKbvEsPsBhOOve.mp4?tag=10"}, {"content_type": "application/x-mpegURL", "url": "https://video.twimg.com/ext_tw_video/1297143456368865281/pu/pl/dFSAvMGjPzyhX2FE.m3u8?tag=10"}, {"bitrate": 432000, "content_type": "video/mp4", "url": "https://video.twimg.com/ext_tw_video/1297143456368865281/pu/vid/320x320/t6AvSeE1C-LQzxOD.mp4?tag=10"}]}, "additional_media_info": {"monetizable": false}}]}, "metadata": {"iso_language_code": "en", "result_type": "recent"}, "source": "<a href=\"http://twitter.com/download/android\" rel=\"nofollow\">Twitter for Android</a>", "in_reply_to_status_id": null, "in_reply_to_status_id_str": null, "in_reply_to_user_id": null, "in_reply_to_user_id_str": null, "in_reply_to_screen_name": null, "user": {"id": 1152669866001874944, "id_str": "1152669866001874944", "name": "\u274cLocked In Tight, I'm Out Of Range \u274c", "screen_name": "trippin_free", "location": "Astral Realm ", "description": "\u274c\ud83c\udfaf\ud83c\udd98\ud83d\udc40The human mind can only stand so much all the truth in the world adds up to one big lie\u274c\n#TargetedIndividuals #Gangstalking #BAN5G #OpenYourMind #NWO \u26a0\ufe0f", "url": "https://t.co/83hkZfJJ1D", "entities": {"url": {"urls": [{"url": "https://t.co/83hkZfJJ1D", "expanded_url": "http://www.worldwidetargeting.com", "display_url": "worldwidetargeting.com", "indices": [0, 23]}]}, "description": {"urls": []}}, "protected": false, "followers_count": 20282, "friends_count": 18097, "listed_count": 0, "created_at": "Sat Jul 20 20:01:26 +0000 2019", "favourites_count": 27858, "utc_offset": null, "time_zone": null, "geo_enabled": false, "verified": false, "statuses_count": 22255, "lang": null, "contributors_enabled": false, "is_translator": false, "is_translation_enabled": false, "profile_background_color": "F5F8FA", "profile_background_image_url": null, "profile_background_image_url_https": null, "profile_background_tile": false, "profile_image_url": "http://pbs.twimg.com/profile_images/1298518985852559361/Zr1GIkPW_normal.jpg", "profile_image_url_https": "https://pbs.twimg.com/profile_images/1298518985852559361/Zr1GIkPW_normal.jpg", "profile_banner_url": "https://pbs.twimg.com/profile_banners/1152669866001874944/1590183752", "profile_link_color": "1DA1F2", "profile_sidebar_border_color": "C0DEED", "profile_sidebar_fill_color": "DDEEF6", "profile_text_color": "333333", "profile_use_background_image": true, "has_extended_profile": false, "default_profile": true, "default_profile_image": false, "following": false, "follow_request_sent": false, "notifications": false, "translator_type": "none"}, "geo": null, "coordinates": null, "place": null, "contributors": null, "is_quote_status": true, "quoted_status_id": 1296135004054065156, "quoted_status_id_str": "1296135004054065156", "quoted_status": {"created_at": "Wed Aug 19 17:20:40 +0000 2020", "id": 1296135004054065156, "id_str": "1296135004054065156", "full_text": "Mandatory vaccines are now in Australia! \u274c\nDo not sent your children back 2 school it's a trap. It's a way to take your children! Isolate then from their parents! \u274c And vaccine them. \nResearch\n#WakeUpWorld\n#CovidHoax I do not comply &amp; neither should any one else.\n#TruthMatters https://t.co/L6woH5CteU", "truncated": false, "display_text_range": [0, 281], "entities": {"hashtags": [{"text": "WakeUpWorld", "indices": [193, 205]}, {"text": "CovidHoax", "indices": [206, 216]}, {"text": "TruthMatters", "indices": [268, 281]}], "symbols": [], "user_mentions": [], "urls": [], "media": [{"id": 1296135001990471681, "id_str": "1296135001990471681", "indices": [282, 305], "media_url": "http://pbs.twimg.com/media/EfzL6saXoAEJtsH.jpg", "media_url_https": "https://pbs.twimg.com/media/EfzL6saXoAEJtsH.jpg", "url": "https://t.co/L6woH5CteU", "display_url": "pic.twitter.com/L6woH5CteU", "expanded_url": "https://twitter.com/trippin_free/status/1296135004054065156/photo/1", "type": "photo", "sizes": {"thumb": {"w": 150, "h": 150, "resize": "crop"}, "medium": {"w": 480, "h": 512, "resize": "fit"}, "large": {"w": 480, "h": 512, "resize": "fit"}, "small": {"w": 480, "h": 512, "resize": "fit"}}}]}, "extended_entities": {"media": [{"id": 1296135001990471681, "id_str": "1296135001990471681", "indices": [282, 305], "media_url": "http://pbs.twimg.com/media/EfzL6saXoAEJtsH.jpg", "media_url_https": "https://pbs.twimg.com/media/EfzL6saXoAEJtsH.jpg", "url": "https://t.co/L6woH5CteU", "display_url": "pic.twitter.com/L6woH5CteU", "expanded_url": "https://twitter.com/trippin_free/status/1296135004054065156/photo/1", "type": "photo", "sizes": {"thumb": {"w": 150, "h": 150, "resize": "crop"}, "medium": {"w": 480, "h": 512, "resize": "fit"}, "large": {"w": 480, "h": 512, "resize": "fit"}, "small": {"w": 480, "h": 512, "resize": "fit"}}}]}, "metadata": {"iso_language_code": "en", "result_type": "recent"}, "source": "<a href=\"http://twitter.com/download/android\" rel=\"nofollow\">Twitter for Android</a>", "in_reply_to_status_id": null, "in_reply_to_status_id_str": null, "in_reply_to_user_id": null, "in_reply_to_user_id_str": null, "in_reply_to_screen_name": null, "user": {"id": 1152669866001874944, "id_str": "1152669866001874944", "name": "\u274cLocked In Tight, I'm Out Of Range \u274c", "screen_name": "trippin_free", "location": "Astral Realm ", "description": "\u274c\ud83c\udfaf\ud83c\udd98\ud83d\udc40The human mind can only stand so much all the truth in the world adds up to one big lie\u274c\n#TargetedIndividuals #Gangstalking #BAN5G #OpenYourMind #NWO \u26a0\ufe0f", "url": "https://t.co/83hkZfJJ1D", "entities": {"url": {"urls": [{"url": "https://t.co/83hkZfJJ1D", "expanded_url": "http://www.worldwidetargeting.com", "display_url": "worldwidetargeting.com", "indices": [0, 23]}]}, "description": {"urls": []}}, "protected": false, "followers_count": 20282, "friends_count": 18097, "listed_count": 0, "created_at": "Sat Jul 20 20:01:26 +0000 2019", "favourites_count": 27858, "utc_offset": null, "time_zone": null, "geo_enabled": false, "verified": false, "statuses_count": 22255, "lang": null, "contributors_enabled": false, "is_translator": false, "is_translation_enabled": false, "profile_background_color": "F5F8FA", "profile_background_image_url": null, "profile_background_image_url_https": null, "profile_background_tile": false, "profile_image_url": "http://pbs.twimg.com/profile_images/1298518985852559361/Zr1GIkPW_normal.jpg", "profile_image_url_https": "https://pbs.twimg.com/profile_images/1298518985852559361/Zr1GIkPW_normal.jpg", "profile_banner_url": "https://pbs.twimg.com/profile_banners/1152669866001874944/1590183752", "profile_link_color": "1DA1F2", "profile_sidebar_border_color": "C0DEED", "profile_sidebar_fill_color": "DDEEF6", "profile_text_color": "333333", "profile_use_background_image": true, "has_extended_profile": false, "default_profile": true, "default_profile_image": false, "following": false, "follow_request_sent": false, "notifications": false, "translator_type": "none"}, "geo": null, "coordinates": null, "place": null, "contributors": null, "is_quote_status": false, "retweet_count": 33, "favorite_count": 34, "favorited": false, "retweeted": false, "possibly_sensitive": false, "lang": "en"}, "retweet_count": 43, "favorite_count": 29, "favorited": false, "retweeted": false, "possibly_sensitive": false, "lang": "en"}, "is_quote_status": true, "quoted_status_id": 1296135004054065156, "quoted_status_id_str": "1296135004054065156", "retweet_count": 43, "favorite_count": 0, "favorited": false, "retweeted": false, "lang": "en"}
+
+
+Whoah... I can't even copy/paste this line of bytes. When I pasted it here they dissapeared. What's going on here!?
+
+I've saved the file separately at the path `rona-rumours/reports/logs\ and\ notes/line\ 13444\ byte\ corruption/rona-rumours-bh\ -\ corrupted\ line\ 13444.jsonl` 
+
+The error is coming here:
+
+tweet id: 1297212805570072577 - OK - found in 2020-08-allcoast5gtofsource.zip: 5g-tof-filter13.jsonl
+tweet id: 1298919307922071552 - error on line - found in 2020-08-allcoast5gtofsource.zip: 5g-tof-filter13.jsonl, all-search3.jsonl
+tweet id: 1291773292529901573 - OK - found in 2020-08-allcoast5gtofsource.zip: 5g-tof-filter11.jsonl
+
+There is a trace of what looks like a mac os preferences filename "com.apple.macl"... but I have no preferences files whose names start like this.
+
+Seems macl relates to Cataline per-file file system security:
+
+- https://lapcatsoftware.com/articles/macl.html
+- https://eclecticlight.co/2020/01/30/quarantine-sip-and-macl-macos-per-file-security-controls/
+
+I narrowed the issue down to 2020-10-5g-tofsource.zip file I made when moving the data into the rona-rumours corpus. I unzipped and rezipped the files and ran make again and the build appears to have succeeded on this single new zip file. I'll try returning the other data and running the build again.
+
+I wonder if the macos has put some sort of filesystem metadata into the zip file, which, when the command line unzips and pipes directly to stdout got in the way. I've take a screenshot of the issue as it appeared in sublime text, with hex encoded characters which I was unable to copy/paste easily.
+
+The build got a lot further, but failed again:
+
+pigz -dc data/tweets/rona-rumours-fu.jsonl.gz | jq -r '[.id_str, .created_at] | @csv' > build/tweets/rona-rumours-fu.csv
+jq: error (at <stdin>:39895): Cannot index number with string "id_str"
+parse error: Invalid numeric literal at line 39895, column 15
+make: *** [build/tweets/rona-rumours-fs.csv] Error 4
+make: *** Waiting for unfinished jobs....
+
+Steps to trace this:
+- The error failed on the 'fs' chunk.
+- The csv file for this chunk has 39894 lines. The last line is the tweet where the pipeline failed: "1314195663232675840","Thu Oct 08 13:27:17 +0000 2020"
+- unzip the rona-rumours-fs.jsonl.zip chunk to look for the source tweets/error line:
+  - find for tweet id 1314195663232675840, and the same macos filesystem metadata error is on the next line, line number 39895 as reported in the make error.
+- Next, zipgrep through the source data files to confirm which of the zip files this error is in. `zipgrep 1314195663232675840 data/raw-source/2020-11-allcoastsource.zip`, and the error seems to be in this zip file.
+- Solution: unzip and rezip these files, and make clean, make source_data_chunks, make tids to see if we get past this again.
+
+time make source_data_chunks
+# @requirement brew install coreutils
+# @requirement brew install pigz
+mkdir -p ./data/tweets
+# First cat all lines into single stream
+# then drop duplicate lines using awk,
+# and then chunk into separate files using gsplit,
+# and then zip each file (using gsplit's --filter).
+# the RAWJSONL wildcard needs to be escaped when it is used in unzip -p
+unzip -p ./data/raw-source/\*source.zip | awk '!seen[$0]++' | gsplit -l 50000   - ./data/tweets/rona-rumours- --filter='pigz > $FILE.jsonl.gz'
+make source_data_chunks  1824.42s user 178.09s system 418% cpu 7:58.57 total
+
+- and try to make the tids again:
+
+time make -j 8 tids
+
+AAAAA! 2 errors now!!!
+
+pigz -dc data/tweets/rona-rumours-fv.jsonl.gz | jq -r '[.id_str, .created_at] | @csv' > build/tweets/rona-rumours-fv.csv
+jq: error (at <stdin>:39895): Cannot index number with string "id_str"
+parse error: Invalid numeric literal at line 39895, column 15
+make: *** [build/tweets/rona-rumours-fs.csv] Error 4
+make: *** Waiting for unfinished jobs....
+parse error: Unfinished JSON term at EOF at line 31898, column 4771
+make: *** [build/tweets/rona-rumours-fv.csv] Error 4
+make -j 8 tids  3088.72s user 100.54s system 627% cpu 8:27.94 total
+
+
+Now the first error is on tweet 1321465997879115777 in chunk file 'fs'. Same filesystem metadata error!
+
+Checking which source zip this is in... `zipgrep 1321465997879115777 data/raw-source/2020-11-allcoastsource.zip`
+
+Confirmed this tweet is in 2020-11-allcoastsource.zip: all-coast-filter22.jsonl source file. Seems my unzip and rezip did not fix the problem this time.
+
+
+The second error is in the last chunk 'fv'. The json chunk file ends on line 31898 and the json line is truncated. This tweet is 1302678344765382656. I've not seen this error yet. It's new. This tweet is in data/raw-source/2020-10-allcoastsource.zip: all-coast-filter20.jsonl
+
+So, I'm going to unzip and rezip both 2020-11-allcoastsource.zip and 2020-10-allcoastsource.zip, and try again.
+
+I ran make data chunks with just the three zips I have recently rezipped:
+- 2020-10-5g-tofsource.zip
+- 2020-10-allcoastsource.zip
+- 2020-11-allcoastsource.zip
+
+And it went all the way through and did the build tid reports successfully using just those three zip files. I'm going to add back the previous zips to the raw-source and try running the chunk and build again.
+
+chunking failed. The last json line of the last chunk (fy) was a truncated json object! I'm going to run the tids build to see if the filesystem metadata issue is gone...
+
+just a single error at the end:
+
+pigz -dc data/tweets/rona-rumours-fy.jsonl.gz | jq -r '[.id_str, .created_at] | @csv' > build/tweets/rona-rumours-fy.csv
+parse error: Unfinished string at EOF at line 8405, column 2514
+make: *** [build/tweets/rona-rumours-fy.csv] Error 4
+make: *** Waiting for unfinished jobs....
+
+Checking the file, the broken tweet ID is: 1304131312500998145
+
+Checking which source file this comes from... found it in data/raw-source/2020-10-allcoastsource.zip : all-coast-filter20.jsonl and it is a complete json object.
+
+This means the chunking command is failing somehow. I'm going to see if the first few zip files are causing problems here. So, moving
+
+1. 2020-04-5g-tofsource.zip - TEMP MOVE
+2. 2020-04-allcoastsource.zip - TEMP MOVE
+3. 2020-04-plandemicsource.zip - TEMP MOVE
+4. 2020-08-allcoast5gtofsource.zip - REZIP AND TEST REBUILD
+5. 2020-10-5g-tofsource.zip - OK
+6. 2020-10-allcoastsource.zip - OK
+7. 2020-11-allcoastsource.zip - OK
+
+So with 4, 5, 6, 7 both build chunks and build tids worked!
+
+Now i'm going to incrementally add 3, then 2, then 1 and rebuild chunks and tids each time, to see if a rezipping fixes these glitches (which currently appear to be where the macos filesystem metadata errors are getting into the CLI pipeline!)
+
+Interesting.... the 2020-04-plandemicsource.zip file unzips to a folder with an empty name! hmm... internal directory structure in the zip files may be where some of this filesystem metadata is getting into the pipeline... anyway, rezipping the jsonl files into the root of the zip file and trying again.
+
+(luckily I made the makefile multithreaded. It take about 8 mins to chunk and 8 mins to process tids, which means this debugging process is possible to do quickly. Previously it was taking over 10 hours to process and I have to run the analysis overnight. The value of optimising your data pipeline is immense for quickly iterating, fixing errors and reproducing the data analysis).
+
+Rezipping zip 3 and reprocessing the entire corpus worked.
+
+Rezipping zip 2 and reprocessing the entire corpus did not work. There is something else in 2020-04-allcoastsource.zip which is causing the glitch. Removed it for now. It is the largest zip so far. I'm just going to check zip 1 first, then zip zip 2 into several files to try to isolate where the error is coming from.
+
+Rezipping zip 1 and reprocessing the entire corpus and getting macos filesystem attribute errors coming from chunk ei:
+
+pigz -dc data/tweets/rona-rumours-ei.jsonl.gz | jq -r '[.id_str, .created_at] | @csv' > build/tweets/rona-rumours-ei.csv
+parse error: Invalid numeric literal at line 36842, column 79
+make: *** [build/tweets/rona-rumours-ei.csv] Error 4
+make: *** Waiting for unfinished jobs....
+
+This line has the filesystem metadata problem in it. Tracing the source jsonl files for the tweet id 1260329279067426818... and it is in raw-source/2020-04-5g-tofsource.zip: tof-search.jsonl - this was a small 10MB file with 1500 tweets in it, so I manually concatenated it with the tof-search2.jsonl file. I'm hoping this file change alters the macos filesystem metadata somehow. Zipping and trying the build again with source zip 1 and 2 only... and it works!
+
+Now, to put all the zips back together and try, hopefully for the final time. Hopefully I have removed these annoying macos file metadata inside zipfiles problems!!!
+
+The chunk build worked but the last file has a broken json object, so there are still problems happening. I'm not sure if broken json objects at the end of the process is due to macos filesystem metadata... I'm running the build tids now to see what happens. Starting to think that I might just manually fix this and just make the chunks myself and leave it at that.
+
+Now the broken json object is tweet id 1307323805052940291. Geez. This is slippery. New approach!
+
+
+build chunks broken again at: 1317333007158706176
+
+So I'm going to attempt to glom the whole lot together first into a temp file, then split this file.
+
+(base) ➜  rona-rumours git:(master) ✗ unzip -p data/raw-source/\*.jsonl.zip | awk '!seen[$$0]++' > alltweets.jsonl
+[1]    38841 broken pipe  unzip -p data/raw-source/\*.jsonl.zip | 
+       38842 killed       awk '!seen[$$0]++' > alltweets.jsonl
+
+
+Broken pipe! This is what keeps happening in the middle somewhere.
+
+I'm going to remove the AWK command and just concatenate everything. See if AWK is the source of the brokenness I keep encountering.
+
+(base) ➜  rona-rumours git:(master) ✗ unzip -p data/raw-source/\*.jsonl.zip > alltweets.jsonl
+
+This worked. 80GB jsonl file. Next, awk to remove duplicates:
+
+(base) ➜  rona-rumours git:(master) ✗ awk '!seen[$0]++' alltweets.jsonl > allunique.jsonl
+[1]    39810 killed     awk '!seen[$0]++' alltweets.jsonl > allunique.jsonl
+
+
+Hmm... why was it killed? Memory issue maybe? That seen[] hash would have to hold the entire thing in memory... this is the problem I think I'm encountering: https://unix.stackexchange.com/a/350521
+
+The awk deduplication is where the breakages are occurring!
+
+
+{"created_at": "Sun Jun 28 12:24:37 +0000 2020", "id": 1277216330022825985,
+
+hmm.... did some other stuff and ran the big file through the twarc/utils/deduplicate.py script which failed with a JSON parsing error on a line with two JSONL entries on it. The second object was this id 1298919307922071552. So, somewhere in the source zips is a line with two json objects on it... I'm hunting for that now...
+
+$ find . -name '*.jsonl.zip' -exec zipgrep 1298919307922071552 '{}'  \;
+
+Gosh... this is frustrating. I wonder if using something like mongodb, which would do some minimal json validatoni, would make this whole process easier.
+
+I suppose this is the drawback with processing text as text, and not parsing it!
+
+But... if this is a double JSON line then what? Is it because of concatenating source files? or is it in the middle of a single source file?
+
+Ok, so the tweet 1298919307922071552 is in 5g-tof-filter13.jsonl and it is the first line! So the prior file has concatenated to this without a newline... the prior file is 5g-tof-filter12.jsonl, but the end lines looks okay. Argh!
+
+
+
+(base) ➜  rona-rumours git:(master) ✗ unzip -p data/raw-source/5g\*.jsonl.zip | bin/twarc/utils/deduplicate.py > 5gdedupe.jsonl
+Traceback (most recent call last):
+  File "bin/twarc/utils/deduplicate.py", line 36, in <module>
+    main(args.files if len(args.files) > 0 else ('-',), extract_retweets=args.extract_retweets)
+  File "bin/twarc/utils/deduplicate.py", line 21, in main
+    tweet = json.loads(line)
+  File "/Users/martinsteer/opt/anaconda3/lib/python3.7/json/__init__.py", line 348, in loads
+    return _default_decoder.decode(s)
+  File "/Users/martinsteer/opt/anaconda3/lib/python3.7/json/decoder.py", line 340, in decode
+    raise JSONDecodeError("Extra data", s, end)
+json.decoder.JSONDecodeError: Extra data: line 1 column 5046 (char 5045)
+
+So, unzipping and using python to deupe hits against a JSON decode error, so the source files are causing drama!
+
+Looking for the file which contains the tweet id near to the error:
+
+$ rona-rumours git:(master) ✗ find . -name '*.jsonl.zip' -exec zipgrep 1298919444245368832 '{}'  \;
+
+
+Found that tweet in 5g-tof-filter13.jsonl and all-search3.js... and opening this file in sublime I think I found the error on line 6... there are two objects on this line? I confirmed this with jsonlinet.com and have manually fixed this (added newline), saved, rezipped, and trying the unzip/twarc dedupe again.
+
+It's probably better than I use the tawrd dedupe because this does parse each line as JSON and so will throw any parsing errors. The awk dedupe command won't parse JSON and so any invalidations will pass through the pipeline.
+
+ok... got another python parsing error.
+
+Steps to trace this:
+- tail the output file to get the last tweet id:
+
+`tail -n1 dedupe.jsonl | head -c100`
+
+- search for this tweet id in the source files to find which file it comes from:
+
+` find . -name '*.jsonl.zip' -exec zipgrep 1309245962762760192 '{}'  \;`
+
+- open that file and find the line in that source file which contains the tweet id and check the next (n+1) line, because this object which caused the parsing error.
+
+- hopefully I find the source of the issue this way and can manually correct...
+
+
+found it in 5g-tof-filter15.jsonl... it is the second last line, which means the last line caused the parse error. AND there was no newline at the end of this file, which means when it streams from one file to the other the last object of this file and the first object of the next file get streamed onto the same line which causes a parse error. Adding newline to this file, rezipping source file and trying again.
+
+New error further down the chain... this is good. It's annoying, but it's a method which is validating and correcting the source jsonl files.
+
+Found another example where the last line of the file does not contain a newline. Added, rezipped and processed again.
+
+`unzip -p data/raw-source/\*.jsonl.zip | bin/twarc/utils/deduplicate.py > dedupe.jsonl`
+
+
+Decided to check all the files ended in newlines and found this script on stack overflow:
+
+#!/bin/sh
+test "$(tail -c 1 "$1")" && echo "no newline at eof: '$1'"
+
+Unzipping all the individual files and running this detected about a dozen files which did not end in newlines, so I opened, addednewline, resaved and rezipped the files. Hopefully this minimises the errors I've been encountering when batch pipelineing these files to deduplicate.
+
+Testing again....
+
+
+
+
+
+
+
+
+
+
+Marty Steer, 2020-11-11
+--
+
+

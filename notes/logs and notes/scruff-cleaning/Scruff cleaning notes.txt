@@ -1,0 +1,14 @@
+Scruff cleaning
+---
+
+Scruff are the tweets which are not relevant to our research project - spam, unrelated topics, etc. So I annotated a bunch of tweets and made a noscruff classifier model with prodigy 1.10 and generated the noscruff texts - which is a directory of preprocessed text files without the scruff tweets (or tweets which were 75% scruff category). This version of prodigy uses Spacy 2.x
+
+I then upgraded prodigy to 1.11.4 and had to rebuild the model (because it now uses Spacy 3) and reran the scruff filter script. The number of tweets which were filtered out was significantly larger, so I wrote a little bash script to plot the differences.
+
+What I'm looking for is to see if the trend is the same across the entire corpus alpha. As I only generated annotation labels using the first month or two of the corpus, there is a chance that the latter months of the corpus start to match more poorly.
+
+See the calc-scruff.sh script.
+
+I just output this to a csv file, and opened it in spreadsheet software to plot the chart (which is in this directory).
+
+MS, 2021-09

@@ -1,0 +1,5 @@
+outs:
+- md5: 7b22309fe6c5dcaa1c4e6419f96ad50e.dir
+  size: 212008863
+  nfiles: 229
+  path: patterns

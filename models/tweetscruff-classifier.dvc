@@ -1,0 +1,5 @@
+outs:
+- md5: 5f06ea921f8dc71a27a67d1451f67d39.dir
+  size: 1743039823
+  nfiles: 46
+  path: tweetscruff-classifier
