@@ -97,66 +97,15 @@ The word lists were then converted into spacy pattern files (and YAML files, for
 **Data:** JSONL
 **Output:** Tight and many iterations, 3-4 rumour categories:
 
-Consume category vocabularies to:
+With annotated data created we began using Prodigy to train the 4 classifiers. The focus was not to get amazing accuracy, but rather to bootstrap these models and apply them to the corpus, to further investigate the linguistic differences somehow. Iterating training several times we improved the model until it was fairly good (about 60-70% F1 scores reported by Prodigy/Spacy). We then ran the classifier across the entire corpus to search for and filter out rumours of interest in each of the four categories. These collections of tweets then formed 4 sub-corpora for language, sentiment, word shift and other analyses.
 
-1. select subset of tweets from corpus,
-2. load tweets into prodigy,
-3. obtain 3 x annotations using `prodigy annotate`,
-4. review annotations using prodigy using `prodigy review`,
-5. export annotations to version control to finalise gold master set,
-6. train and test classifier on imbalanced sample data
-7. Select further tweets from corpus alpha and evalutate classifier to discover more tweets of interest.
-8. Goto step 2.
-
-Iterate several times, annotationing, testing, training and improving the model until it's fairly good. Then we ran the classifier across the entire corpus to search for and filter out rumours of interest. These collections of tweets will then form 4-5 sub-corpora for language, sentiment, word shift, topic shift, user and hashtag network analyses,  and other analyses as well as used to produce graphical visualisations.
+The first few attempts at this proved problematic because there were just so many tweets which were obviously spam and noise and completely irrelevant. So, in addition to the 4 categorial annotations, we decided to create a 5th classifier to help deal with the 'scruffy' data which was getting in the way.
 
 ##### Scruff cleaning
 
-I made a noscruff classifier model m1 with prodigy 1.10 and generated the noscruff texts - a directory of preprocessed text files without tweets matchin 75% scruff category. This version of prodigy uses Spacy 2.x
+"Scruff" as the project defined it was the crappy, spammy and/or irrelevant tweets we had collected which were significantly represented in the corpus. We made a "scruff classifier" using prodigy to annotate and train a model, which we then applied to the whole corpus to remove texts which matched as 75% scruff.
 
-I then upgraded prodigy to 1.11.4 and had to rebuild the model (because it now uses Spacy 3) and reran the scruff filter script. The number of tweets which were filtered out was significantly larger, so I wrote a little bash script to plot the differences.
-
-What I'm looking for is to see if the trend is the same across the entire corpus alpha. As I only generated annotation labels using the first month or two of the corpus, there is a chance that the latter months of the corpus start to match more poorly.
-
-See the calc-scruff.sh script.
-
-I just output this to a csv file, and opened it in spreadsheet software to plot the chart (which is in this directory).
-
-I wonder if when I ran the scruff cleaning last time I had not removed non-english tweets and not removed retweets? Will spot check to see.
-
-##### Classification
-
- **- From rules to semi-supervised training with humans in the loop**
-
-No training data. Need to bootstrap somehow.
-
-developed rules first - from historical categories, informed vocabularies.
-
-used these to mine corpus (first 4-5 months only)
-
-Refined rules according to what it found
-
-Used next iteration as source data for labelling exercises
-
-Scheduled week on week, several hours, three people, 300 annotations each
-
-Compared answers to select only examples where majority (2 or more) people agreed.
-
-Now we have labelled data.
-
-
-
-
-
-##### Training and cross-validation
-
-train/test sets were done at 80% of the labelled data, and achieved the following scores.
-
-These scores are not excellent, and we could attempted a few techniques at improving them (such as preprocessing the corpus) but ran out of RAM.
-
-However, we decided that because we were looking diachronically and comparitively at the macro-patterns within the corpus - the word associations - this was good enough for the prototype build. We would like to have improved the classifiers, tuned specific features for each category and annotated more training data to retrain the models, etc. but for the present purposes, and combined with the raw ngram and frequency data, we decided to focus instead on building out an exploration tool.
-
-(Mention limitation of other colocation tools - antconq and LANCSbox, and how the size and kind of the corpus prevented us from using these software applications)
+The initial version of Prodigy used Spacy 2.x, but during the course of the project we upgraded prodigy to 1.11.4 and had to retrain the model (because Prodigy moved to using Spacy 3). The number of tweets which were filtered out was significantly larger, so I wrote a little bash script to plot the differences. @see `notes/logs and notes/scruff cleaning/Scruff cleaning notes.txt` for more info.
 
 <br />
 
@@ -277,21 +226,19 @@ Due to the nature of the conspiratorial/rumour material we were collecting, it w
 
 #### Phase data
 
-Problems early on - 404 errors and jq's LONG INT truncating tweet id's to end in 00
+We collected twitter data for almost 2 years and during that time it was apparent that tweets were being deleted, blocked or removed for various reasons. So we came up with the idea of 'Phase data'. Phase data is an additional dataset which is *out of phase* with the original data collection timeline, and essentially comprises a secondary dataset whcih is generated by checking if tweets have been removed or not.
 
-Time taken to collect
+The twarc library has some of it's own scripts to collect this information from twitter (not using the twitter API). We attempted to deploy this 6 months after we began data collection, but encountered a rather deep (bit level) software engineering problem in the opensource software we were using. We used the [jq](https://stedolan.github.io/jq/) command line utility to extract the twitter tweet ID's from the corpus, but jq was programmed to use 32-bit long integers. When we parsed the JSON to extract the long tweet id's as integers, we inadvertently ended up truncating all tweet id's to end in 00! When we checked if these tweet id's were still accessible online, most of them were 404 http errors, which appeared like all the tweets we had collected had been deleted. It was very startling to think that 99% of our corpus had been removed from the internet!
 
-Minet tool to the rescue
+@see `notes/logs and notes/errors/phase data attempt/README.md` for info on the truncated long integers problem.
 
-Data format different
-
-@see covid-rumours-data/phase/BUSTED-DATA for more information about this problem.
-
-Generating twitter attrition data
+Once we had identified the bug in the jq software, we built a workaround by extracting the "id_txt" field instead of the "id" field so the integers were treated as strings. Then we sought alternative tools to generate the phase data, and decided to use the [Minet](https://github.com/medialab/minet) tool which is developed and maintained by the [médialab Sciences Po](https://medialab.sciencespo.fr) in France. They took an interest and kindly worked to add a new (and very efficient) feature to minet called [twitter attrition](https://github.com/medialab/minet/blob/master/docs/cli.md#attrition), which collected the twitter phase data brilliantly.
 
 ![tweet-decay-phase-data-2021-07](images/tweet-decay-phase-data-2021-07.svg)
 
 *Partial plot of phase data showing the extent of inaccessible tweets 1 year after collection*
+
+As you can see from the example chart above, we determined that roughtly 50-60% of the tweets collected in the first 8 months of the project had become inaccessible. In the end we decided not to generate phase data for the entire corpus. Our Phase data experiment was a useful exercise in understanding the volatility of the social media landscape and emphasises the importance for Digital Humanists to constantly maintain our own critical technical understanding of the plethora of digital tools we often enthusiastially recommend to others. So, the next time you recommend a piece of software to one of your colleagues, make sure you pass on the health warnings as well. ;-)
 
 <br />
 
